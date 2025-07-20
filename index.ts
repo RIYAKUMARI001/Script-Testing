@@ -14,7 +14,7 @@ if (!existsSync(tmpDir)) {
   mkdirSync(tmpDir);
 }
 
-// ── Load regtest.json ───────────────────────────────────────────────────────────
+// Load regtest.json configuration
 interface RegtestConfig {
   network: "regtest" | "signet";
   host: string;
@@ -28,7 +28,7 @@ const cfgPath = path.join(__dirname, "configs", "regtest.json");
 const rawCfg = readFileSync(cfgPath, "utf8");
 const cfg: RegtestConfig = JSON.parse(rawCfg);
 
-// ── Initialize base RPC client (node-level, no wallet) ───────────────────────
+// Initialize base RPC client (node-level, no wallet)
 const baseClient = new BitcoinCore({
   host: `http://${cfg.host}:${cfg.port}`,
   username: cfg.username,
@@ -41,6 +41,7 @@ async function rpc<T>(client: BitcoinCore, method: string, ...params: any[]): Pr
   return client.command(method, ...params) as Promise<T>;
 }
 
+// Create or load a wallet by name
 async function loadOrCreateWallet(name: string): Promise<BitcoinCore> {
   try {
     const wallets = await rpc<string[]>(baseClient, "listwallets");
@@ -77,7 +78,7 @@ async function loadOrCreateWallet(name: string): Promise<BitcoinCore> {
   });
 }
 
-// Fixed mining function that properly funds the target wallet
+// Mine blocks and fund the target wallet
 async function mine(client: BitcoinCore, blocks: number) {
   const addr = await rpc<string>(client, "getnewaddress");
   const hashes = await rpc<string[]>(baseClient, "generatetoaddress", blocks, addr);
@@ -88,6 +89,7 @@ async function mine(client: BitcoinCore, blocks: number) {
   return hashes;
 }
 
+// Wait for wallet to sync with the blockchain
 async function syncWallet(client: BitcoinCore) {
   // Get current blockchain height
   const blockchainInfo = await rpc<any>(baseClient, "getblockchaininfo");
@@ -125,7 +127,7 @@ async function syncWallet(client: BitcoinCore) {
   }
 }
 
-// ── Create TWO Real Signer Wallets ─────────────────────────────────────────
+// Create two signer wallets for multisig scenarios
 async function createTwoSignerWallets(scenarioName: string): Promise<Array<{
   wallet: BitcoinCore;
   pubkey: string;
@@ -253,7 +255,7 @@ async function createTwoSignerWallets(scenarioName: string): Promise<Array<{
   return signers;
 }
 
-// ── Enhanced Multisig Setup with Better Error Handling ─────────────────────────
+// Set up a 2-of-2 multisig wallet with two signers
 async function setupMultisigWithTwoWallets(scenarioName: string) {
   console.log(`🏗️ Setting up 2-of-2 multisig for ${scenarioName}`);
   
@@ -328,8 +330,7 @@ async function setupMultisigWithTwoWallets(scenarioName: string) {
   };
 }
 
-// Create watcher wallet for Caravan
-// ── Create Watcher Wallet (Legacy) ───────────────────────────────────────────
+// Create a watcher wallet for Caravan
 async function createWatcherWallet(
   scenarioName: string, 
   multisigAddress: string, 
@@ -461,7 +462,7 @@ async function saveCaravanConfig(scenarioName: string, signerData: Array<{pubkey
   return configPath;
 }
 
-// ── Waste Heavy Scenario ─────────────────────────────────────────────────
+// Waste-heavy scenario: create many small/dust outputs and inefficient transactions
 async function wasteHeavy() {
   const scenarioName = "waste_heavy";
   console.log(`🏁 Starting ${scenarioName} scenario with 2 real wallets`);
@@ -633,7 +634,7 @@ async function wasteHeavy() {
   }
 }
 
-// ── Privacy Good Scenario ─────────────────────────────────────────────
+// Privacy-good scenario: create clean transactions with unique addresses
 async function privacyGood() {
   const scenarioName = "privacy_good";
   console.log(`🏁 Starting ${scenarioName} scenario with 2 real wallets`);
@@ -664,7 +665,7 @@ async function privacyGood() {
   }
 }
 
-// ── Privacy Bad Scenario ──────────────────────────────────────────────
+// Privacy-bad scenario: demonstrate bad privacy practices
 async function privacyBad() {
   const scenarioName = "privacy_bad";
   console.log(`🏁 Starting ${scenarioName} scenario with 2 real wallets`);
@@ -724,7 +725,7 @@ async function privacyBad() {
   }
 }
 
-// ── Test 2-of-2 Multisig Spending ────────────────────────────────────────────
+// Test spending from a 2-of-2 multisig wallet
 async function testMultisigSpending(scenarioName: string) {
   console.log(`🧪 Testing 2-of-2 multisig spending for ${scenarioName}`);
   
@@ -779,7 +780,7 @@ async function testMultisigSpending(scenarioName: string) {
   }
 }
 
-// ── Miner Wallet Setup and Funding ─────────────────────────────────────────────
+// Set up and fund a miner wallet, then fund signer wallets
 /**
  * Creates/loads a miner wallet, mines blocks to fund it, and funds signer wallets.
  * @param signerWalletNames Array of signer wallet names to fund
@@ -794,7 +795,7 @@ async function setupAndFundMinerWallet(signerWalletNames: string[], amount: numb
   console.log("⛏️  Mining 110 blocks to fund miner wallet...");
   const minerAddr = await rpc<string>(minerWallet, "getnewaddress");
   // Use baseClient (no wallet context) for generatetoaddress
-  await rpc(baseClient, "generatetoaddress", 110, minerAddr);
+  await rpc(minerWallet, "generatetoaddress", 110, minerAddr);
   await new Promise(resolve => setTimeout(resolve, 1000));
 
   // Rescan to ensure wallet recognizes coinbase txs
@@ -804,7 +805,7 @@ async function setupAndFundMinerWallet(signerWalletNames: string[], amount: numb
   // Fund each signer wallet
 }
 
-// Update CLI options to include the new waste-heavy scenario
+// CLI options and scenario runner
 const argv = yargs(hideBin(process.argv))
   .option("scenario", {
     alias: "s",
