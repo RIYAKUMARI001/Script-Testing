@@ -52,11 +52,12 @@ async function loadOrCreateWallet(name: string): Promise<BitcoinCore> {
         await rpc(baseClient, "loadwallet", name);
         console.log(`Loaded existing wallet "${name}".`);
       } catch (loadError: any) {
+        // Always create as descriptor wallet
         try {
-          await rpc(baseClient, "createwallet", name);
-          console.log(`Created new wallet "${name}".`);
+          await rpc(baseClient, "createwallet", name, false, false, "", false, true);
+          console.log(`Created new descriptor wallet "${name}".`);
         } catch (createError: any) {
-          if (createError.code === -4 && createError.message.includes("Database already exists")) {
+          if (createError.message && createError.message.includes("already exists")) {
             await rpc(baseClient, "loadwallet", name);
             console.log(`Loaded existing wallet "${name}" after database conflict.`);
           } else {
@@ -80,8 +81,8 @@ async function loadOrCreateWallet(name: string): Promise<BitcoinCore> {
 
 // Mine blocks and fund the target wallet
 async function mine(client: BitcoinCore, blocks: number) {
-  const addr = await rpc<string>(client, "getnewaddress");
-  const hashes = await rpc<string[]>(baseClient, "generatetoaddress", blocks, addr);
+  const addr = await rpc<string>(client, "getnewaddress", "", "bech32");
+  const hashes = await rpc<string[]>(client, "generatetoaddress", blocks, addr);
   
   // Wait a bit for the blocks to be processed
   await new Promise(resolve => setTimeout(resolve, 1000));
@@ -478,7 +479,7 @@ async function wasteHeavy() {
   console.log("💸 Creating 20 dust outputs (0.00001 BTC each)...");
   const dustOutputs: { [key: string]: number } = {};
   for (let i = 0; i < 20; i++) {
-    const dustAddr = await rpc<string>(coordinatorWallet, "getnewaddress");
+    const dustAddr = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
     dustOutputs[dustAddr] = Number(0.00001); // 1000 satoshis (dust)
   }
   
@@ -490,7 +491,7 @@ async function wasteHeavy() {
   // 2. Create transactions with many small UTXOs that will need to be consolidated later
   console.log("🔀 Creating 15 small UTXOs (0.1 BTC each)...");
   for (let i = 0; i < 15; i++) {
-    const smallAddr = await rpc<string>(coordinatorWallet, "getnewaddress");
+    const smallAddr = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
     await rpc<string>(coordinatorWallet, "sendtoaddress", smallAddr, Number(0.1));
   }
   await mine(coordinatorWallet, 1);
@@ -499,7 +500,7 @@ async function wasteHeavy() {
   console.log("🔄 Creating transactions with wasteful change patterns...");
   for (let i = 0; i < 8; i++) {
     // Send a weird amount that will create odd change
-    const weirdAddr = await rpc<string>(coordinatorWallet, "getnewaddress");
+    const weirdAddr = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
     const weirdAmount = Number(0.12345678); // Weird precision creates small change
     await rpc<string>(coordinatorWallet, "sendtoaddress", weirdAddr, weirdAmount);
   }
@@ -515,7 +516,7 @@ async function wasteHeavy() {
     const totalAmount = smallUtxos.reduce((sum, u) => sum + u.amount, 0);
     const outputAmount = Number((totalAmount - 0.01).toFixed(8)); // High fee of 0.01 BTC
     
-    const consolidationAddr = await rpc<string>(coordinatorWallet, "getnewaddress");
+    const consolidationAddr = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
     
     if (outputAmount > 0) {
       const rawTx = await rpc<string>(coordinatorWallet, "createrawtransaction", inputs, { [consolidationAddr]: outputAmount });
@@ -529,7 +530,7 @@ async function wasteHeavy() {
   // 5. Create transactions with OP_RETURN data (blockchain bloat)
   console.log("📝 Creating transactions with OP_RETURN data bloat...");
   for (let i = 0; i < 5; i++) {
-    const dataAddr = await rpc<string>(coordinatorWallet, "getnewaddress");
+    const dataAddr = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
     const wasteData = Buffer.from(`Wasteful data ${i}: ${'x'.repeat(60)}`).toString('hex');
     
     // Create transaction with OP_RETURN output
@@ -572,7 +573,7 @@ async function wasteHeavy() {
   // 6. Create RBF (Replace-By-Fee) spam by replacing the same transaction multiple times
   console.log("🔄 Creating RBF spam (multiple fee bumps)...");
   try {
-    const rbfAddr = await rpc<string>(coordinatorWallet, "getnewaddress");
+    const rbfAddr = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
     let txid = await rpc<string>(coordinatorWallet, "sendtoaddress", rbfAddr, Number(1.0)); // Enable RBF
     
     // Try to bump the fee 3 times
@@ -593,9 +594,9 @@ async function wasteHeavy() {
   // 7. Create a transaction chain (child pays for parent scenario)
   console.log("👶 Creating unconfirmed transaction chain...");
   try {
-    const chainAddr1 = await rpc<string>(coordinatorWallet, "getnewaddress");
-    const chainAddr2 = await rpc<string>(coordinatorWallet, "getnewaddress");
-    const chainAddr3 = await rpc<string>(coordinatorWallet, "getnewaddress");
+    const chainAddr1 = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
+    const chainAddr2 = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
+    const chainAddr3 = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
     
     // Create parent transaction with low fee
     const parentTxid = await rpc<string>(coordinatorWallet, "sendtoaddress", chainAddr1, Number(2.0));
@@ -647,7 +648,7 @@ async function privacyGood() {
   // Create 10 clean transactions with unique addresses
   console.log("✨ Creating 10 clean transactions (no address reuse)...");
   for (let i = 0; i < 10; i++) {
-    const addr = await rpc<string>(coordinatorWallet, "getnewaddress");
+    const addr = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
     await rpc<string>(coordinatorWallet, "sendtoaddress", addr, Number(1.0));
     await mine(coordinatorWallet, 1);
     await syncWallet(coordinatorWallet);
@@ -677,7 +678,7 @@ async function privacyBad() {
   
   // Reuse same address multiple times (bad for privacy)
   console.log("♻️ Reusing address for multiple transactions (bad privacy)...");
-  const reusedAddr = await rpc<string>(coordinatorWallet, "getnewaddress");
+  const reusedAddr = await rpc<string>(coordinatorWallet, "getnewaddress", "", "bech32");
   console.log(`   Reused address: ${reusedAddr}`);
   
   for (let i = 0; i < 5; i++) {
@@ -751,7 +752,7 @@ async function testMultisigSpending(scenarioName: string) {
     }
     
     // Create a test transaction
-    const testAddr = await rpc<string>(signer1, "getnewaddress");
+    const testAddr = await rpc<string>(signer1, "getnewaddress", "", "bech32");
     const utxo = utxos[0];
     const inputs = [{ txid: utxo.txid, vout: utxo.vout }];
     const outputs = { [testAddr]: utxo.amount - Number(0.0001) };
@@ -791,18 +792,27 @@ async function setupAndFundMinerWallet(signerWalletNames: string[], amount: numb
   console.log(`⛏️  Setting up miner wallet: ${minerWalletName}`);
   const minerWallet = await loadOrCreateWallet(minerWalletName);
 
-  // Mine 110 blocks to fund miner wallet
-  console.log("⛏️  Mining 110 blocks to fund miner wallet...");
-  const minerAddr = await rpc<string>(minerWallet, "getnewaddress");
-  // Use baseClient (no wallet context) for generatetoaddress
-  await rpc(minerWallet, "generatetoaddress", 110, minerAddr);
+  // Mine 200 blocks to fund miner wallet
+  console.log("⛏️  Mining 200 blocks to fund miner wallet...");
+  const minerAddr = await rpc<string>(minerWallet, "getnewaddress", "", "bech32");
+  await rpc(minerWallet, "generatetoaddress", 200, minerAddr);
   await new Promise(resolve => setTimeout(resolve, 1000));
 
   // Rescan to ensure wallet recognizes coinbase txs
   await rpc(minerWallet, "rescanblockchain");
   await new Promise(resolve => setTimeout(resolve, 1000));
 
-  // Fund each signer wallet
+  // Fund each signer wallet from miner_wallet
+  for (const signerWalletName of signerWalletNames) {
+    const signerWallet = await loadOrCreateWallet(signerWalletName);
+    const signerAddr = await rpc<string>(signerWallet, "getnewaddress", "", "bech32");
+    // Send amount BTC from miner wallet to signer wallet
+    await rpc(minerWallet, "sendtoaddress", signerAddr, amount);
+  }
+  // Mine 1 block to confirm the funding transactions
+  const confirmAddr = await rpc<string>(minerWallet, "getnewaddress", "", "bech32");
+  await rpc(minerWallet, "generatetoaddress", 1, confirmAddr);
+  await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
 // CLI options and scenario runner
