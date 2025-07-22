@@ -1,7 +1,7 @@
 {
   "network": "regtest",
   "host": "localhost",
-  "port": 18443,
+  "port": 8080,
   "username": "caravanuser",      
   "password": "caravanpass",      
   "wallet": "test_wallet_gamma"

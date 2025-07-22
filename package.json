@@ -1,7 +1,19 @@
 {
+  "name": "bitcoin-multisig-caravan-setup",
+  "version": "1.0.0",
+  "description": "Automated setup for Bitcoin multisig wallets with Caravan",
+  "main": "index.ts",
+  "scripts": {
+    "setup": "npx ts-node index.ts --scenario=all",
+    "start": "npx ts-node index.ts",
+    "test": "npx ts-node index.ts --scenario=all --test"
+  },
   "type": "commonjs",
   "dependencies": {
+    "axios": "^1.10.0",
     "bitcoin-core": "^5.0.0",
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^3.0.5",
     "yargs": "^18.0.0"
   },
   "devDependencies": {
